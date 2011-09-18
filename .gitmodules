@@ -1,0 +1,3 @@
+[submodule "usb_serial"]
+	path = usb_serial
+	url = ./usb_serial
