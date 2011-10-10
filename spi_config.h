@@ -40,7 +40,7 @@ static inline void release_spi(void) {
 /*
  * Writes a buffer out the SPI interface, returns immediately
  */
-void write_spi(uint8_t *buf, short len);
+void write_spi(const uint8_t *buf, short len);
 
 /*
  * True if the SPI interface is busy sending a buf

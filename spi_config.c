@@ -8,12 +8,14 @@
 const void *_spi_lock = 0;
 uint8_t _spi_busy = 0;
 //Used during transmission
-static uint8_t *_spi_buf;
-static uint8_t *_spi_buf_end;
+static volatile const uint8_t *_spi_buf;
+static volatile const uint8_t *_spi_buf_end;
 
 void setup_spi() {
   //Make PB2 (MOSI) and PB1 (SCLK) outputs
-  set_bits(DDRB,0b00000110,0b00000110);
+  set_bits(DDRB, 0b00000110,0b00000110);
+  set_bits(PORTB,0b00000001,0b00000001); //Activate SS-bar's pullup resistor
+  
   //Enable SPI
   SPCR = (1 << SPIE) | //Interrupts
          (1 << SPE)  | //Global enable
@@ -22,13 +24,12 @@ void setup_spi() {
          (0 << CPOL) |
          (0 << CPHA) |
          (0 << SPR1) | //f/4
-         (0 << SPR0);
-  SPSR = 0b00000000;
-  SPDR = 0; //No 2x
-  
+         (1 << SPR0);
+  SPSR = 0b00000000;  //No 2x
 }
 
-void write_spi(uint8_t *buf, short len) {
+void write_spi(const uint8_t *buf, short len) {
+  
     if(len == 0 || _spi_busy) return;
     
     _spi_busy = 1;

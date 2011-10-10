@@ -24,15 +24,24 @@
 #include <avr/io.h>
 #include <avr/pgmspace.h>
 #include <util/delay.h>
+#include <avr/interrupt.h>
+
+
+#include "usb_serial/usb_serial.h"
 
 #include "spi_config.h"
 #include "allegro.h"
+#include "timer.h"
+#include "util.h"
+#include "connector.h"
+#include "pwm.h"
 
-#define LED_CONFIG	(DDRD |= (1<<6))
-#define LED_ON		(PORTD &= ~(1<<6))
-#define LED_OFF		(PORTD |= (1<<6))
+#define LED_CONFIG (DDRD |= (1<<6))
+#define LED_OFF    (PORTD &= ~(1<<6))
+#define LED_ON     (PORTD |= (1<<6))
+#define LED_TOGGLE (PIND = (1 << 6))
+
 #define CPU_PRESCALE(n)	(CLKPR = 0x80, CLKPR = (n))
-#define DIT 80		/* unit time for morse code */
 
 static allegro_spi_state motor0_state;
 static allegro_spi_state motor1_state;
@@ -42,7 +51,7 @@ static allegro_spi_state motor3_state;
 const allegro_spi_cfg motor0_cfg PROGMEM = {
   .strobe_port = &PORTB,
   .strobe_mask = 0b00010000,
-  .pwm_register = 0, //TODO
+  .current_control = set_oc1b,
   .state = &motor0_state
 };
 
@@ -50,37 +59,94 @@ const allegro_spi_cfg motor0_cfg PROGMEM = {
 const allegro_spi_cfg motor1_cfg PROGMEM = {
   .strobe_port = &PORTF,
   .strobe_mask = 0b00010000,
-  .pwm_register = 0, //TODO
   .state = &motor1_state
 };
 
 const allegro_spi_cfg motor2_cfg PROGMEM = {
   .strobe_port = &PORTB,
   .strobe_mask = 0b00001000,
-  .pwm_register = 0, //TODO
   .state = &motor2_state
 };
 
 const allegro_spi_cfg motor3_cfg PROGMEM = {
   .strobe_port = &PORTC,
   .strobe_mask = 0b01000000,
-  .pwm_register = 0, //TODO
   .state = &motor3_state
 };
 
+#include "const_strings.h"
+void send_pstr(const char* PROGMEM);
+
 int main(void)
 {
-	unsigned char i, invert, drive;
-
-	// set for 16 MHz clock, and make sure the LED is off
+  timer_t led_timer, motor_timer, current_timer;
+	// set for 16 MHz clock
 	CPU_PRESCALE(0);
 	LED_CONFIG;
-	LED_OFF;
+	LED_ON;
 	
+  //We need interrupts for this!
+  sei();
+
+  setup_timer(); //Real-time clock
+
+  setup_connector();
+  if(is_miswired()) {
+    init_timer(&led_timer, 1000);
+    while(1)
+      if(timer_fired(&led_timer)) LED_TOGGLE;
+  }
+  
+  //init_timer(&led_timer, 250);
+  
+
+  //Initialize all the perhipherals
+  usb_init();
+  // initialize the USB, and then wait for the host
+  // to set configuration.  If the Teensy is powered
+  // without a PC connected to the USB port, this 
+  // will wait forever.
+  while (!usb_configured()) /* wait */ ;
+  
+  wake_motors();
+
   setup_spi();
+  init_timer(&led_timer, 5000);
+  init_timer(&motor_timer, 1);
+  init_timer(&current_timer, 800);
+  
+  setup_timer1_as_pwm();
+  enable_oc1b();
   init_motor(&motor0_cfg);
-  init_motor(&motor1_cfg);
-  init_motor(&motor2_cfg);
-  init_motor(&motor3_cfg);
+  set_motor_current(&motor0_cfg, 25);
+  // init_motor(&motor1_cfg);
+  // init_motor(&motor2_cfg);
+  // init_motor(&motor3_cfg);
+
+  uint8_t current = 0;
+  while(1) {
+    if(timer_fired(&led_timer)) {
+      LED_TOGGLE;
+    }
+    
+    //tick_motor(&motor1_cfg);
+    tick_motor(&motor0_cfg);
+
+    if(timer_fired(&motor_timer)) {
+      move_motor(&motor0_cfg, 1);
+    }
+    //if(timer_fired(&current_timer)) {
+    //  set_motor_current(&motor0_cfg, current++);
+    //}
+  }
 }
 
+void send_pstr(const char* PROGMEM s)
+{
+	char c;
+	while (1) {
+		c = pgm_read_byte(s++);
+		if (!c) break;
+		usb_serial_putchar(c);
+	}
+}

@@ -2,9 +2,7 @@
 #include "allegro.h"
 #include "spi_config.h"
 
-//To make getting stuff out of PROGMEM structs a little easier
-#define WORD_FIELD(s,f) pgm_read_word(&((s)->f))
-#define BYTE_FIELD(s,f) pgm_read_byte(&((s)->f))
+#include "util.h"
 
 //Converts the position value (0-127) into an appropriate, 6-bit magnitude
 inline static uint8_t motor_mag(uint8_t pos);
@@ -13,24 +11,27 @@ inline static uint8_t motor_phs(uint8_t pos);
 
 void init_motor(const allegro_spi_cfg *cfg) {
     allegro_spi_state *state = (allegro_spi_state*)WORD_FIELD(cfg, state);
-    uint8_t *str = (uint8_t*)WORD_FIELD(cfg, strobe_port);
-    uint8_t mask = BYTE_FIELD(cfg, strobe_mask);
-
+    volatile uint8_t *strobe = (volatile uint8_t*)WORD_FIELD(cfg, strobe_port);
+    uint8_t strobe_mask = BYTE_FIELD(cfg, strobe_mask);
+    
     state->motor_position = 0;
     state->dirty   = 1;
     state->do_init = 1;
 
-    *str |= mask; //Strobe is default high
+    //THAR BE MAGIC HERE: DDRx register is 1 lower in mem than the PORTx register
+    *(strobe - 1) |= strobe_mask; //Set the strobe pin as output
+    *strobe |= strobe_mask; //Strobe is default high (not writing)
 }
 
 uint8_t motor_ready(const allegro_spi_cfg *cfg) {
-  //TODO
-  return 0;
+  allegro_spi_state *state = (allegro_spi_state*)WORD_FIELD(cfg, state);
+
+  return !state->do_init;
 }
 
 void tick_motor(const allegro_spi_cfg *cfg) {
     allegro_spi_state *state = (allegro_spi_state*)WORD_FIELD(cfg, state);
-    uint8_t *str = (uint8_t*)WORD_FIELD(cfg, strobe_port);
+    volatile uint8_t *str = (uint8_t*)WORD_FIELD(cfg, strobe_port);
     uint8_t mask = BYTE_FIELD(cfg, strobe_mask);
     uint8_t pos, amag, bmag;
 
@@ -62,20 +63,20 @@ void tick_motor(const allegro_spi_cfg *cfg) {
             //Release SPI
             release_spi();
         }
-    } else if(state->dirty) {
+    } else if(state->dirty && !has_spi(cfg)) {
         if(!acquire_spi(cfg)) return; //Can't flush now
 
         pos = state->motor_position;
         amag = motor_mag(pos); //cos
         bmag = motor_mag(pos-32); //90 degrees behind, sin
 
-        state->tx_buf[0] = 0b00000000; //MSB D18-D16, B Mixed decay, internal Vref, /8
-        state->tx_buf[1] = 0 << 7 ||                 //A Mixed decay D15
-                           motor_phs(pos-32) << 6 || //Bphs D14
-                           motor_phs(pos) << 5    || //Aphs D13
-                           (bmag >> 1) & 0x1F;       //BMag D12-D8; D15-D8
-        state->tx_buf[2] = (bmag & 0x01) << 7 || //BMag LSB (D7)
-                           (amag & 0x3F) << 1 || //AMag (D6 - D1)
+        state->tx_buf[0] = 0b00000110; //B Mixed decay, external Vref, /8; MSB D18-D16
+        state->tx_buf[1] = 0 << 7 |                 //A Mixed decay D15
+                           (motor_phs(pos-32) << 6) | //Bphs D14
+                           (motor_phs(pos)    << 5) | //Aphs D13
+                           ((bmag >> 1) & 0x1F);       //BMag D12-D8; D15-D8
+        state->tx_buf[2] = ((bmag & 0x01) << 7) | //BMag LSB (D7)
+                           ((amag & 0x3F) << 1) | //AMag (D6 - D1)
                            0b00000000;           //WS: 0; LSB, D7-D0
 
         *str &= ~mask; //Set strobe low to begin filling controller register
@@ -83,10 +84,32 @@ void tick_motor(const allegro_spi_cfg *cfg) {
         write_spi(state->tx_buf, 3); //Start SPI transfer
     } else if(has_spi(cfg)){
         //Means we are in the process of doing a transfer
-        if(!spi_busy())
+        if(!spi_busy()) {
+          *str |= mask; //Pull strobe high to signal end of transfer
           release_spi();
+        }
     }
 }
+
+uint8_t move_motor(const allegro_spi_cfg *cfg, int8_t steps) {
+  allegro_spi_state *state = (allegro_spi_state*)WORD_FIELD(cfg, state);
+  
+  state->motor_position = state->motor_position + steps;
+  state->dirty = 1;
+  return state->motor_position;
+}
+
+void set_motor_current(const allegro_spi_cfg *cfg, uint8_t current) {
+  allegro_spi_state *state = (allegro_spi_state*)WORD_FIELD(cfg, state);
+  current_set_f func = (current_set_f)WORD_FIELD(cfg, current_control);
+  
+  //Vref can run from 0-2.6V, with voltage divider and PWM, Vref runs from 0-2.5,
+  //TODO: A future revision of the board that yields full 8-bit precision over 0.5-2.6
+  current = ((204 * current) / 256) + 51;
+  func(current);
+}
+
+
 
 static const prog_uint8_t sin_table[] PROGMEM = {
     63,
@@ -124,18 +147,24 @@ static const prog_uint8_t sin_table[] PROGMEM = {
     0
 };
 
+//
+// Returns abs(cos(pos))
+//   pos - ranges from 0-127 over entire circle
+//   return - ranges from 0-63
+//
+//
 inline static uint8_t motor_mag(uint8_t pos) {
   uint8_t quadrant = ((pos % 128) / 32) % 2; //Even or odd quadrants
 
   pos = pos % 32;
 
   if(quadrant) //quadrants 1 and 3
-    return sin_table[32 - pos];
+    return pgm_read_byte(sin_table + 32 - pos);
   else //quadrants 0 and 2
-    return sin_table[pos];
+    return pgm_read_byte(sin_table + pos);
 }
 
-// Quadrants 1 and 2 are negative
+// Returns 1 if the cos(pos) is negative
 //
 inline static uint8_t motor_phs(uint8_t pos) {
   pos = (pos / 32) + 1; //pos == 0 or 1: +, pos == 2 or 3: -

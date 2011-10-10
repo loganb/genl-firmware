@@ -47,7 +47,10 @@ TARGET = motor_test
 # List C source files here. (C dependencies are automatically generated.)
 SRC =	$(TARGET).c \
 	allegro.c \
-	spi_config.c
+	spi_config.c \
+	timer.c \
+	connector.c \
+  usb_serial/usb_serial.c
 
 # MCU name, you MUST set this to match the board you are using
 # type "make clean" after changing this, so all files will be rebuilt
@@ -325,7 +328,6 @@ DEBUG_PORT = 4242
 #     just set to localhost unless doing some sort of crazy debugging when 
 #     avarice is running on a different computer.
 DEBUG_HOST = localhost
-
 
 
 #============================================================================

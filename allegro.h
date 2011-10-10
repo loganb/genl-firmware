@@ -4,9 +4,11 @@
 #include <stdint.h>
 #include <avr/pgmspace.h>
 
+typedef void (*current_set_f)(uint8_t);
+
 typedef struct _allegro_spi_state {
     //Position of motor in units of 1/32 steps (0-127)
-    //Position 0 is full current in A winding
+    //Position 0 is full current in A winding, 32 is full current in B winding
     uint8_t motor_position;
     //Flag to indicate motor state needs to be updated
     uint8_t dirty : 1;
@@ -25,9 +27,9 @@ typedef struct PROGMEM _allegro_spi_cfg {
     volatile uint8_t *strobe_port;
     //Bitmask that can be OR'd out the port to set strobe high
     uint8_t strobe_mask;
-    
+
     //A register that can be written 0x00-0xFF to control the current from min-max respectively
-    volatile uint8_t *pwm_register;
+    current_set_f current_control;
 
     //Pointer to the state struct
     allegro_spi_state *state;
@@ -49,6 +51,7 @@ uint8_t move_motor(const allegro_spi_cfg *cfg, int8_t steps);
 uint8_t set_motor(const allegro_spi_cfg *cfg, uint8_t pos);
 
 //Sets the motor current between min and max (0x00 - 0xFF)
+//On a3992, 0x00 == VRef 0.5V and 0xFF == VRef 2.5V
 void set_motor_current(const allegro_spi_cfg *cfg, uint8_t current);
 
 #endif
