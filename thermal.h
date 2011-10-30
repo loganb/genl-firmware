@@ -1,3 +1,5 @@
+#ifndef __THERMAL_H_
+#define __THERMAL_H_
 
 #include "util.h"
 
@@ -17,3 +19,5 @@ static inline void init_heater(const heater *h) {
   ddr |= mask;
   
 }
+
+#endif

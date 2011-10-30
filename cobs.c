@@ -6,8 +6,7 @@ uint8_t stuff_frame(uint8_t *stuffed, const uint8_t *src, uint8_t len) {
   cobs_point = dst++;
   for(uint8_t i = 0; i < len; i++) {
     tmp = src[i]
-    //Do the cobs thing
-    if(tmp == 0) {
+    if(tmp == 0) { //Encode the distance to the zero char
       *cobs_point = dst - cobs_point;
       cobs_point  = dst++;
     } else if(dst - cobs_point == 255) { //254 bytes have been copied

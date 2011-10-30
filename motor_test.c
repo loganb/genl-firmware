@@ -26,15 +26,13 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 
-
-#include "usb_serial/usb_serial.h"
-
 #include "spi_config.h"
 #include "allegro.h"
 #include "timer.h"
 #include "util.h"
 #include "connector.h"
 #include "pwm.h"
+#include "host_link.h"
 
 #define LED_CONFIG (DDRD |= (1<<6))
 #define LED_OFF    (PORTD &= ~(1<<6))
@@ -43,6 +41,11 @@
 
 #define CPU_PRESCALE(n)	(CLKPR = 0x80, CLKPR = (n))
 
+
+///////
+//
+// Motor configuration block
+//
 static allegro_spi_state motor0_state;
 static allegro_spi_state motor1_state;
 static allegro_spi_state motor2_state;
@@ -54,7 +57,6 @@ const allegro_spi_cfg motor0_cfg PROGMEM = {
   .current_control = set_oc1b,
   .state = &motor0_state
 };
-
 
 const allegro_spi_cfg motor1_cfg PROGMEM = {
   .strobe_port = &PORTF,
@@ -73,6 +75,12 @@ const allegro_spi_cfg motor3_cfg PROGMEM = {
   .strobe_mask = 0b01000000,
   .state = &motor3_state
 };
+
+/////////
+//
+// Host-link Configuration
+//
+static host_link_cfg host_link;
 
 #include "const_strings.h"
 void send_pstr(const char* PROGMEM);
@@ -99,15 +107,6 @@ int main(void)
   
   //init_timer(&led_timer, 250);
   
-
-  //Initialize all the perhipherals
-  usb_init();
-  // initialize the USB, and then wait for the host
-  // to set configuration.  If the Teensy is powered
-  // without a PC connected to the USB port, this 
-  // will wait forever.
-  while (!usb_configured()) /* wait */ ;
-  
   wake_motors();
 
   setup_spi();
@@ -118,7 +117,7 @@ int main(void)
   setup_timer1_as_pwm();
   enable_oc1b();
   init_motor(&motor0_cfg);
-  set_motor_current(&motor0_cfg, 25);
+  set_motor_current(&motor0_cfg, 20);
   // init_motor(&motor1_cfg);
   // init_motor(&motor2_cfg);
   // init_motor(&motor3_cfg);
@@ -133,7 +132,7 @@ int main(void)
     tick_motor(&motor0_cfg);
 
     if(timer_fired(&motor_timer)) {
-      move_motor(&motor0_cfg, 1);
+      move_motor(&motor0_cfg, 4);
     }
     //if(timer_fired(&current_timer)) {
     //  set_motor_current(&motor0_cfg, current++);

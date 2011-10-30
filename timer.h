@@ -64,7 +64,7 @@ static inline uint16_t ticks_elapsed(uint16_t *since) {
 
 /********
  *
- * Initializes Counter3 and OCR3A to run a timer with a 10ms tick
+ * Initializes Counter3 and OCR3A to run a timer with a 100µs tick
  *
  */
 void setup_timer(void);
