@@ -1,6 +1,6 @@
 
 #include "allegro.h"
-#include "spi_config.h"
+#include "spi.h"
 
 #include "util.h"
 
@@ -100,7 +100,7 @@ uint8_t move_motor(const allegro_spi_cfg *cfg, int8_t steps) {
 }
 
 void set_motor_current(const allegro_spi_cfg *cfg, uint8_t current) {
-  allegro_spi_state *state = (allegro_spi_state*)WORD_FIELD(cfg, state);
+  //allegro_spi_state *state = (allegro_spi_state*)WORD_FIELD(cfg, state);
   current_set_f func = (current_set_f)WORD_FIELD(cfg, current_control);
   
   //Vref can run from 0-2.6V, with voltage divider and PWM, Vref runs from 0-2.5,

@@ -1,7 +1,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#include "spi_config.h"
+#include "spi.h"
 #include "util.h"
 
 /* SPI State */

@@ -26,7 +26,7 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 
-#include "spi_config.h"
+#include "spi.h"
 #include "allegro.h"
 #include "timer.h"
 #include "util.h"
@@ -105,6 +105,7 @@ int main(void)
       if(timer_fired(&led_timer)) LED_TOGGLE;
   }
   
+  init_host_link(&host_link);
   //init_timer(&led_timer, 250);
   
   wake_motors();
