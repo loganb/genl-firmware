@@ -42,6 +42,7 @@
 
 # Target file name (without extension).
 TARGET = motor_test
+#TARGET = link_test
 
 
 # List C source files here. (C dependencies are automatically generated.)
