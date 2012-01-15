@@ -53,10 +53,10 @@ SRC = $(TARGET).c \
      teensy_utils/timer.c \
      teensy_utils/spi.c \
      teensy_utils/timer.c \
-     cobs/src/cobs.c \
+     cobs/cobs.c \
      usb_serial/usb_serial.c
 
-EXTRAINCDIRS = cobs/include usb_serial teensy_utils
+EXTRAINCDIRS = cobs usb_serial teensy_utils
 
 
 # MCU name, you MUST set this to match the board you are using

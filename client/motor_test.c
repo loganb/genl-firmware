@@ -80,7 +80,7 @@ const allegro_spi_cfg motor3_cfg PROGMEM = {
 //
 // Host-link Configuration
 //
-static host_link_cfg host_link;
+//static host_link_cfg host_link;
 
 #include "const_strings.h"
 void send_pstr(const char* PROGMEM);
@@ -105,7 +105,7 @@ int main(void)
       if(timer_fired(&led_timer)) LED_TOGGLE;
   }
   
-  init_host_link(&host_link);
+  //init_host_link(&host_link);
   //init_timer(&led_timer, 250);
   
   wake_motors();
@@ -113,12 +113,12 @@ int main(void)
   setup_spi();
   init_timer(&led_timer, 5000);
   init_timer(&motor_timer, 1);
-  init_timer(&current_timer, 800);
+  init_timer(&current_timer, 20);
   
   setup_timer1_as_pwm();
   enable_oc1b();
   init_motor(&motor0_cfg);
-  set_motor_current(&motor0_cfg, 20);
+  set_motor_current(&motor0_cfg, 30);
   // init_motor(&motor1_cfg);
   // init_motor(&motor2_cfg);
   // init_motor(&motor3_cfg);
@@ -133,7 +133,7 @@ int main(void)
     tick_motor(&motor0_cfg);
 
     if(timer_fired(&motor_timer)) {
-      move_motor(&motor0_cfg, 4);
+      move_motor(&motor0_cfg, -1);
     }
     //if(timer_fired(&current_timer)) {
     //  set_motor_current(&motor0_cfg, current++);
